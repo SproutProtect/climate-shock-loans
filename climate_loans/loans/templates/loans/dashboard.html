@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -59,9 +60,9 @@
   <nav class="bg-white border-b border-gray-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <span class="text-2xl">🌧️</span>
+        <img src="{% static 'climate-shock-loans-logo.jpeg' %}" alt="ClimateLoan logo" class="h-10 w-10 rounded-lg object-cover shadow-sm" />
         <div>
-          <span class="text-lg font-bold text-gray-900"><span class="text-primary-500">Climate Shock Loans</span>
+          <span class="text-lg font-bold text-gray-900"><span class="text-primary-500">Climate Shock Loans</span></span>
           <span class="ml-2 text-xs text-gray-400 font-medium uppercase tracking-wide">Drought Response System</span>
         </div>
       </div>
@@ -72,6 +73,27 @@
       </div>
     </div>
   </nav>
+
+  <!-- ── Hero ── -->
+  <div class="relative w-full overflow-hidden" style="height: 320px;">
+    {% if drought_active %}
+    <img src="{% static 'climate-shock-loans-hero-red.jpeg' %}" alt="Drought conditions" class="w-full h-full object-cover object-center" />
+    <div class="absolute inset-0" style="background: linear-gradient(to right, rgba(158,31,56,0.72) 0%, rgba(230,62,98,0.35) 60%, transparent 100%);"></div>
+    <div class="absolute inset-0 flex flex-col justify-center px-10 sm:px-16 max-w-3xl">
+      <p class="text-white/70 text-xs font-semibold uppercase tracking-widest mb-2">Climate Trigger Active</p>
+      <h1 class="text-white text-4xl sm:text-5xl font-extrabold leading-tight drop-shadow-lg">Responsible.<br/>Drought.<br/>Response.</h1>
+      <p class="mt-4 text-white/80 text-sm max-w-sm">Chainlink-verified rainfall data has triggered automatic micro-loan disbursements to registered farmers.</p>
+    </div>
+    {% else %}
+    <img src="{% static 'climate-shock-loans-hero-white.jpeg' %}" alt="Normal climate conditions" class="w-full h-full object-cover object-center" />
+    <div class="absolute inset-0" style="background: linear-gradient(to right, rgba(30,30,30,0.55) 0%, rgba(30,30,30,0.2) 60%, transparent 100%);"></div>
+    <div class="absolute inset-0 flex flex-col justify-center px-10 sm:px-16 max-w-3xl">
+      <p class="text-white/70 text-xs font-semibold uppercase tracking-widest mb-2">All Clear</p>
+      <h1 class="text-white text-4xl sm:text-5xl font-extrabold leading-tight drop-shadow-lg">Monitoring.<br/>Standing by.</h1>
+      <p class="mt-4 text-white/80 text-sm max-w-sm">Rainfall levels are within normal range. Loans remain on standby and will deploy automatically when a drought event is detected.</p>
+    </div>
+    {% endif %}
+  </div>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
@@ -343,7 +365,10 @@
   <!-- ── Footer ── -->
   <footer class="mt-12 border-t border-gray-200 bg-white py-6">
     <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-400">
-      <span><span class="text-primary-500 font-medium">Climate</span>Loan — Drought-triggered micro-finance prototype</span>
+      <span class="flex items-center gap-2">
+        <img src="{% static 'climate-shock-loans-logo.jpeg' %}" alt="logo" class="h-5 w-5 rounded object-cover opacity-60" />
+        <span class="text-primary-400 font-medium">Climate Shock Loans</span> — Drought-triggered micro-finance prototype
+      </span>
       <span>Chainlink · CHIRPS · Django 5</span>
     </div>
   </footer>
