@@ -1,7 +1,7 @@
 """
 Management command: python manage.py seed_data
 
-Creates realistic sample data for the ClimateLoan hackathon prototype.
+Creates realistic sample data for the Climate Shock Loans hackathon prototype.
 Safe to run multiple times — skips existing records.
 """
 from django.core.management.base import BaseCommand
@@ -24,7 +24,7 @@ class Command(BaseCommand):
     help = "Seeds the database with sample climate loan data"
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.MIGRATE_HEADING("Seeding ClimateLoan data…"))
+        self.stdout.write(self.style.MIGRATE_HEADING("Seeding Climate Shock Loans data…"))
 
         # MFI
         mfi, created = MFI.objects.get_or_create(
