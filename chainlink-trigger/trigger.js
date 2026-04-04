@@ -1,8 +1,5 @@
 require("dotenv").config();
-const axios = require("axios");
 const { ethers } = require("ethers");
-
-const API_URL = "http://127.0.0.1:4000/api/rainfall/?rainfall=4";
 
 const provider = new ethers.JsonRpcProvider(process.env.INFURA_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
@@ -17,24 +14,30 @@ const contract = new ethers.Contract(
   wallet
 );
 
+// Get CLI argument
+const input = process.argv[2]; // "1" or "0"
+
 async function main() {
-  console.log("🌧 Fetching rainfall data...");
+  console.log("📥 Input received:", input);
 
-  const response = await axios.get(API_URL);
-  const data = response.data;
+  if (input !== "0" && input !== "1") {
+    console.log("❌ Please provide 0 (no drought) or 1 (drought)");
+    return;
+  }
 
-  console.log("Rainfall:", data.rainfall);
-  console.log("Drought:", data.drought);
+  const result = parseInt(input);
 
-  if (data.drought === true) {
-    console.log("🚨 Drought detected → triggering contract");
+  if (result === 1) {
+    console.log("🚨 Drought detected → activating loan system on-chain");
 
     const tx = await contract.updateFromOracle(1);
     await tx.wait();
 
-    console.log("✅ Transaction sent:", tx.hash);
+    console.log("✅ Drought status updated on-chain");
+    console.log("🔗 Tx:", tx.hash);
+    console.log("➡️ Farmers can now begin requesting loans");
   } else {
-    console.log("✅ No drought — nothing triggered");
+    console.log("🌤 No drought → nothing triggered");
   }
 }
 

@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import datetime
 import logging
@@ -11,6 +12,58 @@ from django.utils import timezone
 from .models import Farmer, Loan, LoanFund, ClimateTrigger, LoanProduct
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Blockchain: fire-and-forget contract call
+# ---------------------------------------------------------------------------
+
+CONTRACT_ABI = [
+    {"name": "updateFromOracle", "type": "function",
+     "inputs": [{"name": "result", "type": "uint256"}],
+     "outputs": [], "stateMutability": "nonpayable"},
+]
+
+def _send_contract_tx(amount):
+    """
+    Fires a transaction to contract.updateFromOracle(amount) on Sepolia.
+    Does NOT wait for receipt — returns tx hash immediately so the UI stays fast.
+    Returns the hex tx hash string, or None if env vars are missing / call fails.
+    """
+    try:
+        from web3 import Web3
+
+        infura_url      = os.environ.get("INFURA_URL")
+        private_key     = os.environ.get("PRIVATE_KEY")
+        contract_address = os.environ.get("CONTRACT_ADDRESS")
+
+        if not all([infura_url, private_key, contract_address]):
+            logger.warning("Blockchain env vars missing — skipping contract call")
+            return None
+
+        w3 = Web3(Web3.HTTPProvider(infura_url))
+        account = w3.eth.account.from_key(private_key)
+        contract = w3.eth.contract(
+            address=Web3.to_checksum_address(contract_address),
+            abi=CONTRACT_ABI,
+        )
+
+        nonce = w3.eth.get_transaction_count(account.address)
+        tx = contract.functions.updateFromOracle(int(amount)).build_transaction({
+            "from": account.address,
+            "nonce": nonce,
+            "gas": 100_000,
+            "gasPrice": w3.eth.gas_price,
+        })
+        signed = w3.eth.account.sign_transaction(tx, private_key)
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        hex_hash = tx_hash.hex()
+        logger.info("Contract tx sent — amount=%d tx=%s", amount, hex_hash)
+        return hex_hash
+
+    except Exception as exc:
+        logger.error("Contract call failed: %s", exc)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -306,9 +359,13 @@ def simulate_loan(request):
 
     approved = fund.withdraw(amount)
 
+    tx_hash = None
+    if approved:
+        tx_hash = _send_contract_tx(amount)
+
     logger.info(
-        "simulate_loan — amount=$%d drought=%s approved=%s remaining=$%d",
-        amount, drought_active, approved, fund.available_capital,
+        "simulate_loan — amount=$%d drought=%s approved=%s remaining=$%d tx=%s",
+        amount, drought_active, approved, fund.available_capital, tx_hash,
     )
 
     return JsonResponse({
@@ -318,6 +375,7 @@ def simulate_loan(request):
         "available_capital": fund.available_capital,
         "loans_issued": fund.loans_issued,
         "last_updated": fund.last_updated.isoformat(),
+        "tx_hash": tx_hash,
     })
 
 
