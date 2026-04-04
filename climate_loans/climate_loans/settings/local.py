@@ -12,9 +12,9 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from climate_loans.settings.common import *
 import os
-
-
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # settings/ lives two levels inside the project root, so .parent.parent.parent reaches manage.py's dir
