@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClimateLoan — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            drought: { 50: '#fff7ed', 500: '#f97316', 600: '#ea580c', 700: '#c2410c' },
+            rain:    { 50: '#eff6ff', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ── Top Nav ── -->
+  <nav class="bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🌧️</span>
+        <div>
+          <span class="text-lg font-bold text-gray-900">ClimateLoan</span>
+          <span class="ml-2 text-xs text-gray-400 font-medium uppercase tracking-wide">Drought Response System</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/admin/" class="text-sm text-gray-500 hover:text-gray-900 transition">Admin ↗</a>
+        <a href="/farmers/" class="text-sm text-gray-500 hover:text-gray-900 transition">API: Farmers</a>
+        <a href="/loans/" class="text-sm text-gray-500 hover:text-gray-900 transition">API: Loans</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+    <!-- ── Drought Status Banner ── -->
+    {% if drought_active %}
+    <div class="rounded-2xl bg-orange-50 border border-orange-200 p-6 flex items-center gap-5 shadow-sm">
+      <div class="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center text-3xl flex-shrink-0">🔥</div>
+      <div>
+        <h2 class="text-xl font-bold text-orange-800">Drought Condition Active</h2>
+        <p class="text-orange-700 text-sm mt-1">
+          Region: <strong>{{ latest_trigger.region }}</strong> &nbsp;·&nbsp;
+          Rainfall: <strong>{{ latest_trigger.rainfall }} mm</strong> &nbsp;·&nbsp;
+          Threshold: <strong>{{ latest_trigger.threshold }} mm</strong> &nbsp;·&nbsp;
+          Triggered: <strong>{{ latest_trigger.triggered_at|date:"M j, Y H:i" }} UTC</strong>
+        </p>
+      </div>
+      <div class="ml-auto">
+        <span class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-orange-500 text-white text-sm font-semibold shadow">
+          <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span> DROUGHT
+        </span>
+      </div>
+    </div>
+    {% else %}
+    <div class="rounded-2xl bg-blue-50 border border-blue-200 p-6 flex items-center gap-5 shadow-sm">
+      <div class="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-3xl flex-shrink-0">🌱</div>
+      <div>
+        <h2 class="text-xl font-bold text-blue-800">No Active Drought</h2>
+        <p class="text-blue-700 text-sm mt-1">
+          {% if latest_trigger %}
+            Last check: <strong>{{ latest_trigger.region }}</strong> — Rainfall {{ latest_trigger.rainfall }} mm (threshold {{ latest_trigger.threshold }} mm)
+          {% else %}
+            No climate events recorded yet. Use <code class="bg-blue-100 px-1 rounded">/trigger-drought/</code> to simulate one.
+          {% endif %}
+        </p>
+      </div>
+      <div class="ml-auto">
+        <span class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-500 text-white text-sm font-semibold shadow">
+          <span class="w-2 h-2 rounded-full bg-white"></span> NORMAL
+        </span>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── KPI Cards ── -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Farmers</p>
+        <p class="text-4xl font-bold text-gray-900 mt-2">{{ total_farmers }}</p>
+        <p class="text-sm text-gray-500 mt-1">{{ qualified_farmers }} pre-qualified</p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Loans Available</p>
+        <p class="text-4xl font-bold text-green-600 mt-2">{{ loans_by_status.available }}</p>
+        <p class="text-sm text-gray-500 mt-1">Ready to draw down</p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Loans Disbursed</p>
+        <p class="text-4xl font-bold text-purple-600 mt-2">{{ loans_by_status.disbursed }}</p>
+        <p class="text-sm text-gray-500 mt-1">of {{ total_loans }} total</p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pending Loans</p>
+        <p class="text-4xl font-bold text-gray-700 mt-2">{{ loans_by_status.pending }}</p>
+        <p class="text-sm text-gray-500 mt-1">Awaiting trigger</p>
+      </div>
+    </div>
+
+    <!-- ── Loan Breakdown Bar ── -->
+    {% if total_loans %}
+    <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+      <h3 class="text-sm font-semibold text-gray-700 mb-4">Loan Status Breakdown</h3>
+      <div class="flex rounded-full overflow-hidden h-5">
+        {% if loans_by_status.pending %}
+        <div class="bg-gray-300" style="width:{{ loans_by_status.pending|floatformat:0 }}%;min-width:2px" title="Pending: {{ loans_by_status.pending }}"></div>
+        {% endif %}
+        {% if loans_by_status.available %}
+        <div class="bg-green-400" style="width:{{ loans_by_status.available|floatformat:0 }}%;min-width:2px" title="Available: {{ loans_by_status.available }}"></div>
+        {% endif %}
+        {% if loans_by_status.disbursed %}
+        <div class="bg-purple-400" style="width:{{ loans_by_status.disbursed|floatformat:0 }}%;min-width:2px" title="Disbursed: {{ loans_by_status.disbursed }}"></div>
+        {% endif %}
+        {% if loans_by_status.repaid %}
+        <div class="bg-blue-400" style="width:{{ loans_by_status.repaid|floatformat:0 }}%;min-width:2px" title="Repaid: {{ loans_by_status.repaid }}"></div>
+        {% endif %}
+      </div>
+      <div class="flex gap-6 mt-3 flex-wrap">
+        <div class="flex items-center gap-2 text-xs text-gray-600"><span class="w-3 h-3 rounded-full bg-gray-300 inline-block"></span>Pending ({{ loans_by_status.pending }})</div>
+        <div class="flex items-center gap-2 text-xs text-gray-600"><span class="w-3 h-3 rounded-full bg-green-400 inline-block"></span>Available ({{ loans_by_status.available }})</div>
+        <div class="flex items-center gap-2 text-xs text-gray-600"><span class="w-3 h-3 rounded-full bg-purple-400 inline-block"></span>Disbursed ({{ loans_by_status.disbursed }})</div>
+        <div class="flex items-center gap-2 text-xs text-gray-600"><span class="w-3 h-3 rounded-full bg-blue-400 inline-block"></span>Repaid ({{ loans_by_status.repaid }})</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Fund Utilization ── -->
+    {% if funds %}
+    <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+      <h3 class="text-sm font-semibold text-gray-700 mb-4">Loan Fund Utilization</h3>
+      <div class="space-y-4">
+        {% for fund in funds %}
+        <div>
+          <div class="flex justify-between text-sm mb-1.5">
+            <span class="font-medium text-gray-800">{{ fund.name }}</span>
+            <span class="text-gray-500">
+              ${{ fund.available_capital|floatformat:0 }} remaining / ${{ fund.total_capital|floatformat:0 }} total
+              <span class="ml-2 text-gray-400">({{ fund.funding_source }})</span>
+            </span>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-3">
+            <div
+              class="{% if fund.utilization_pct > 80 %}bg-red-400{% elif fund.utilization_pct > 50 %}bg-orange-400{% else %}bg-green-400{% endif %} h-3 rounded-full transition-all"
+              style="width: {{ fund.utilization_pct }}%"
+            ></div>
+          </div>
+          <p class="text-xs text-gray-400 mt-1">{{ fund.utilization_pct }}% utilized</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Two Columns: Trigger Simulator + Recent Triggers ── -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Simulate Drought Trigger -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-1">Simulate Climate Trigger</h3>
+        <p class="text-xs text-gray-400 mb-5">Calls <code class="bg-gray-100 px-1 rounded">/trigger-drought/</code> — simulates CHIRPS data</p>
+        <form id="triggerForm" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Region</label>
+            <input id="region" type="text" value="Tigray, Ethiopia"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Rainfall (mm)</label>
+              <input id="rainfall" type="number" step="0.1" value="12.5"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Threshold (mm)</label>
+              <input id="threshold" type="number" step="0.1" value="30.0"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button type="submit" id="triggerBtn"
+              class="flex-1 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
+              🔥 Trigger Drought
+            </button>
+            <button type="button" id="normalBtn"
+              class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
+              🌧️ Simulate Rain
+            </button>
+          </div>
+        </form>
+        <div id="triggerResult" class="mt-4 hidden">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <p class="text-xs font-semibold text-gray-500 mb-2">Response</p>
+            <pre id="triggerResultPre" class="text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Triggers -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Recent Climate Events</h3>
+        {% if recent_triggers %}
+        <div class="space-y-2">
+          {% for t in recent_triggers %}
+          <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+            <span class="text-lg">{% if t.drought %}🔥{% else %}🌧️{% endif %}</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-800 truncate">{{ t.region }}</p>
+              <p class="text-xs text-gray-400">{{ t.rainfall }} mm / {{ t.threshold }} mm threshold</p>
+            </div>
+            <div class="text-right flex-shrink-0">
+              {% if t.drought %}
+              <span class="inline-block px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-medium">DROUGHT</span>
+              {% else %}
+              <span class="inline-block px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">NORMAL</span>
+              {% endif %}
+              <p class="text-xs text-gray-400 mt-1">{{ t.triggered_at|date:"M j, H:i" }}</p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-10 text-gray-400">
+          <p class="text-4xl mb-3">📡</p>
+          <p class="text-sm">No climate events yet. Use the simulator ←</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Recent Loans Table ── -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-gray-700">Recent Loans</h3>
+        <a href="/loans/" class="text-xs text-blue-500 hover:text-blue-700">View all (JSON) →</a>
+      </div>
+      {% if recent_loans %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-100">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">#</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Farmer</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Product</th>
+              <th class="px-6 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Amount</th>
+              <th class="px-6 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Triggered</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Term</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            {% for loan in recent_loans %}
+            <tr class="hover:bg-gray-50 transition">
+              <td class="px-6 py-3 text-sm text-gray-400">#{{ loan.id }}</td>
+              <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ loan.farmer.name }}</td>
+              <td class="px-6 py-3 text-sm text-gray-600">{{ loan.loan_product.name }}</td>
+              <td class="px-6 py-3 text-sm text-right font-mono text-gray-800">${{ loan.amount|floatformat:0 }}</td>
+              <td class="px-6 py-3 text-center">
+                {% if loan.status == 'available' %}
+                  <span class="inline-block px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">Available</span>
+                {% elif loan.status == 'disbursed' %}
+                  <span class="inline-block px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">Disbursed</span>
+                {% elif loan.status == 'repaid' %}
+                  <span class="inline-block px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">Repaid</span>
+                {% else %}
+                  <span class="inline-block px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">Pending</span>
+                {% endif %}
+              </td>
+              <td class="px-6 py-3 text-center text-sm">
+                {% if loan.triggered %}
+                  <span class="text-orange-500" title="Climate-triggered">🔥</span>
+                {% else %}
+                  <span class="text-gray-300">—</span>
+                {% endif %}
+              </td>
+              <td class="px-6 py-3 text-xs text-gray-400">
+                {% if loan.start_date %}
+                  {{ loan.start_date }} → {{ loan.end_date }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-12 text-gray-400">
+        <p class="text-4xl mb-3">📋</p>
+        <p class="text-sm">No loans yet. Add farmers &amp; loan products in <a href="/admin/" class="text-blue-500 hover:underline">Admin</a>, then trigger a drought event.</p>
+      </div>
+      {% endif %}
+    </div>
+
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer class="mt-12 border-t border-gray-200 bg-white py-6">
+    <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-400">
+      <span>ClimateLoan — Drought-triggered micro-finance prototype</span>
+      <span>Chainlink · CHIRPS · Django 5</span>
+    </div>
+  </footer>
+
+  <script>
+    const getCookie = name => {
+      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return v ? v.pop() : '';
+    };
+
+    const showResult = (data) => {
+      const el = document.getElementById('triggerResult');
+      const pre = document.getElementById('triggerResultPre');
+      el.classList.remove('hidden');
+      pre.textContent = JSON.stringify(data, null, 2);
+      setTimeout(() => location.reload(), 1800);
+    };
+
+    document.getElementById('triggerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('triggerBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Triggering…';
+      try {
+        const res = await fetch('/trigger-drought/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({
+            region: document.getElementById('region').value,
+            rainfall: parseFloat(document.getElementById('rainfall').value),
+            threshold: parseFloat(document.getElementById('threshold').value),
+          })
+        });
+        const data = await res.json();
+        showResult(data);
+      } catch (err) {
+        alert('Request failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔥 Trigger Drought';
+      }
+    });
+
+    document.getElementById('normalBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('normalBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Sending…';
+      try {
+        const res = await fetch('/trigger-drought/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({
+            region: document.getElementById('region').value,
+            rainfall: parseFloat(document.getElementById('threshold').value) + 20,
+            threshold: parseFloat(document.getElementById('threshold').value),
+          })
+        });
+        const data = await res.json();
+        showResult(data);
+      } catch (err) {
+        alert('Request failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🌧️ Simulate Rain';
+      }
+    });
+  </script>
+</body>
+</html>
