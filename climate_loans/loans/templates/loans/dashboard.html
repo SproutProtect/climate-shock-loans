@@ -178,7 +178,7 @@
         <img src="{% static 'report_icons/success_blue.png' %}" class="w-9 h-9 opacity-70 flex-shrink-0" />
         <div>
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Loans Issued</p>
-          <p class="text-2xl font-bold text-primary-500 mt-0.5" id="fund-loans-issued">{{ loan_fund.loans_issued|default:0 }}</p>
+          <p class="text-2xl font-bold text-primary-500 mt-0.5" id="fund-loans-issued">{{ loans_issued|default:0 }}</p>
         </div>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex items-center gap-4">
@@ -194,27 +194,27 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
 
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Farmers</p>
-        <p class="text-4xl font-bold text-gray-900 mt-2">{{ total_farmers }}</p>
-        <p class="text-sm text-gray-500 mt-1">{{ qualified_farmers }} pre-qualified</p>
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pre-Qualified Farmers</p>
+        <p class="text-4xl font-bold text-gray-900 mt-2">{{ prequalified_farmers }}</p>
+        <p class="text-sm text-gray-500 mt-1">Eligible for loans</p>
       </div>
 
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Loans Available</p>
-        <p class="text-4xl font-bold text-green-600 mt-2">{{ loans_by_status.available }}</p>
-        <p class="text-sm text-gray-500 mt-1">Ready to draw down</p>
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Loans Issued</p>
+        <p class="text-4xl font-bold text-green-600 mt-2" id="kpi-loans-issued">{{ loans_issued }}</p>
+        <p class="text-sm text-gray-500 mt-1">Approved &amp; disbursed</p>
       </div>
 
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Loans Disbursed</p>
-        <p class="text-4xl font-bold text-primary-500 mt-2">{{ loans_by_status.disbursed }}</p>
-        <p class="text-sm text-gray-500 mt-1">of {{ total_loans }} total</p>
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Capital Deployed</p>
+        <p class="text-4xl font-bold text-primary-500 mt-2" id="kpi-capital-deployed">${{ capital_deployed }}</p>
+        <p class="text-sm text-gray-500 mt-1">Total approved amount</p>
       </div>
 
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pending Loans</p>
-        <p class="text-4xl font-bold text-gray-400 mt-2">{{ loans_by_status.pending }}</p>
-        <p class="text-sm text-gray-500 mt-1">Awaiting trigger</p>
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Capital</p>
+        <p class="text-4xl font-bold text-gray-800 mt-2" id="kpi-capital-remaining">${{ funds.first.total_capital|floatformat:0  }}</p>
+        <p class="text-sm text-gray-500 mt-1">Available to disburse</p>
       </div>
     </div>
 
@@ -352,7 +352,7 @@
         class="w-full px-6 py-4 border-b border-gray-100 flex items-center justify-between hover:bg-gray-50 transition text-left">
         <div class="flex items-center gap-3">
           <img src="{% static 'report_icons/success_blue.png' %}" class="w-5 h-5" />
-          <h3 class="text-sm font-semibold text-gray-700">Approved Farmers</h3>
+          <h3 class="text-sm font-semibold text-gray-700">Approved Farmer Loans</h3>
           <span class="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
             {{ simulation_logs|length }} total
           </span>
@@ -563,10 +563,15 @@
       </span>
       <span>Chainlink · CHIRPS · Django 5</span>
     </div>
-    <!-- secret reset — low contrast, no label -->
-    <div class="flex justify-center mt-4">
+    <!-- secret controls — low contrast, no labels -->
+    <div class="flex justify-center gap-4 mt-4">
       <button id="resetFundBtn"
         title="Reset fund to $100,000"
+        class="text-gray-200 hover:text-gray-400 text-xs transition select-none px-3 py-1 rounded">
+        ···
+      </button>
+      <button id="resetDroughtBtn"
+        title="Reset drought on-chain"
         class="text-gray-200 hover:text-gray-400 text-xs transition select-none px-3 py-1 rounded">
         ···
       </button>
@@ -625,6 +630,8 @@
 
     const fmt = n => '$' + parseInt(n).toLocaleString();
 
+    const TOTAL_CAPITAL = 100_000;
+
     const updateDashboard = (data) => {
       // PoR card
       document.querySelector('[data-por-capital]').textContent = fmt(data.available_capital);
@@ -642,6 +649,13 @@
       document.getElementById('sim-loans-issued').textContent = data.loans_issued;
       if (data.status === 'approved') {
         document.getElementById('sim-last-amount').textContent = fmt(data.loan_amount);
+      }
+      // KPI cards — use authoritative values from API response
+      if (data.status === 'approved') {
+        const deployed = TOTAL_CAPITAL - data.available_capital;
+        document.getElementById('kpi-loans-issued').textContent = data.loans_issued;
+        document.getElementById('kpi-capital-deployed').textContent = fmt(deployed);
+        document.getElementById('kpi-capital-remaining').textContent = fmt(data.available_capital);
       }
     };
 
@@ -802,6 +816,29 @@
       }
     });
 
+    document.getElementById('resetDroughtBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('resetDroughtBtn');
+      btn.textContent = '…';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/reset-drought/', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          btn.textContent = '✓';
+          setTimeout(() => { btn.textContent = '···'; btn.disabled = false; }, 2000);
+        } else {
+          alert('Reset failed: ' + (data.reason || 'unknown error'));
+          btn.textContent = '···'; btn.disabled = false;
+        }
+      } catch (err) {
+        alert('Reset failed: ' + err.message);
+        btn.textContent = '···'; btn.disabled = false;
+      }
+    });
+
     document.getElementById('resetFundBtn').addEventListener('click', async () => {
       const res = await fetch('/reset-fund/', {
         method: 'POST',
@@ -809,7 +846,11 @@
       });
       const data = await res.json();
       if (data.status === 'ok') {
-        // Update all capital displays
+        // KPI cards
+        document.getElementById('kpi-loans-issued').textContent = '0';
+        document.getElementById('kpi-capital-deployed').textContent = '$0';
+        document.getElementById('kpi-capital-remaining').textContent = '$100,000';
+        // Other displays
         document.querySelectorAll('[data-por-capital]').forEach(el => el.textContent = '$100,000');
         document.getElementById('fund-capital').textContent = '$100,000';
         document.getElementById('fund-loans-issued').textContent = '0';

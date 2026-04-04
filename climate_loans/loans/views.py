@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods
 from django.shortcuts import render
 from django.utils import timezone
 
+from django.db import models
 from .models import Farmer, Loan, LoanFund, ClimateTrigger, LoanProduct, SimulationLog
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,13 @@ CONTRACT_ABI = [
         "inputs": [],
         "outputs": [{"name": "", "type": "uint256"}],
         "stateMutability": "view",
+    },
+    {
+        "name": "resetDrought",
+        "type": "function",
+        "inputs": [],
+        "outputs": [],
+        "stateMutability": "nonpayable",
     },
 ]
 
@@ -184,6 +192,36 @@ def _trigger_drought_on_chain():
         return None
 
 
+def _reset_drought_on_chain():
+    """
+    Calls contract.resetDrought() to set droughtTriggered = false on-chain.
+    Returns tx hash hex, or None on failure.
+    """
+    try:
+        w3, account, contract = _get_w3()
+        nonce = w3.eth.get_transaction_count(account.address)
+        tx = contract.functions.resetDrought().build_transaction({
+            "from": account.address,
+            "nonce": nonce,
+            "gas": 80_000,
+            "gasPrice": w3.eth.gas_price,
+        })
+        signed = w3.eth.account.sign_transaction(tx, account.key)
+        tx_hash = w3.eth.send_raw_transaction(_raw_tx(signed))
+        hex_hash = tx_hash.hex()
+        print(f"  [chain] resetDrought() broadcast tx={hex_hash} — waiting…")
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=90)
+        if receipt.status == 0:
+            logger.error("resetDrought() reverted tx=%s", hex_hash)
+            return None
+        print(f"  [chain] ✅ Drought reset confirmed — block={receipt.blockNumber}")
+        logger.info("Drought reset on-chain block=%d tx=%s", receipt.blockNumber, hex_hash)
+        return hex_hash
+    except Exception as exc:
+        logger.error("_reset_drought_on_chain failed: %s", exc)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -192,19 +230,19 @@ def dashboard(request):
     latest_trigger = ClimateTrigger.objects.first()
     drought_active = latest_trigger.drought if latest_trigger else False
 
-    total_farmers = Farmer.objects.count()
-    qualified_farmers = Farmer.objects.filter(qualification_status=True).count()
+    prequalified_farmers = Farmer.objects.filter(qualification_status=True).count()
 
-    loans_by_status = {
-        "pending": Loan.objects.filter(status=Loan.STATUS_PENDING).count(),
-        "available": Loan.objects.filter(status=Loan.STATUS_AVAILABLE).count(),
-        "disbursed": Loan.objects.filter(status=Loan.STATUS_DISBURSED).count(),
-        "repaid": Loan.objects.filter(status=Loan.STATUS_REPAID).count(),
-    }
-    total_loans = sum(loans_by_status.values())
+    approved_logs = SimulationLog.objects.filter(status=SimulationLog.STATUS_APPROVED)
+    loans_issued = approved_logs.count()
+    capital_deployed = approved_logs.aggregate(
+        total=models.Sum("amount")
+    )["total"] or 0
+
+    loan_fund = LoanFund.objects.first()
+    total_capital = loan_fund.total_capital if loan_fund else 100_000
+    capital_remaining = total_capital - capital_deployed
 
     funds = LoanFund.objects.all()
-    loan_fund = LoanFund.objects.first()
     recent_triggers = ClimateTrigger.objects.all()[:10]
     recent_loans = Loan.objects.select_related("farmer", "loan_product").order_by("-created_at")[:20]
     simulation_logs = SimulationLog.objects.order_by("-created_at")[:50]
@@ -212,10 +250,10 @@ def dashboard(request):
     context = {
         "drought_active": drought_active,
         "latest_trigger": latest_trigger,
-        "total_farmers": total_farmers,
-        "qualified_farmers": qualified_farmers,
-        "loans_by_status": loans_by_status,
-        "total_loans": total_loans,
+        "prequalified_farmers": prequalified_farmers,
+        "loans_issued": loans_issued,
+        "capital_deployed": capital_deployed,
+        "capital_remaining": capital_remaining,
         "funds": funds,
         "loan_fund": loan_fund,
         "recent_triggers": recent_triggers,
@@ -454,7 +492,10 @@ def simulate_loan(request):
     """
     latest_trigger = ClimateTrigger.objects.first()
     drought_active = latest_trigger.drought if latest_trigger else False
-    amount = random.randint(55, 120)
+    product = LoanProduct.objects.first()
+    min_amt = product.min_amount if product else 55
+    max_amt = product.max_amount if product else 120
+    amount = random.randint(min_amt, max_amt)
     fund = LoanFund.objects.first()
 
     print(f"\n{'='*55}")
@@ -517,6 +558,27 @@ def simulate_loan(request):
         fund.save()
     else:
         fund.withdraw(amount)
+
+    # Step 4 — mark a pending Loan record as disbursed to keep Loan table in sync
+    pending_loan = (
+        Loan.objects.filter(
+            status=Loan.STATUS_PENDING,
+            farmer__qualification_status=True,
+        )
+        .order_by("?")
+        .first()
+    )
+    if pending_loan:
+        pending_loan.status = Loan.STATUS_DISBURSED
+        pending_loan.amount = amount
+        pending_loan.loan_fund = fund
+        pending_loan.triggered = True
+        pending_loan.start_date = datetime.date.today()
+        pending_loan.end_date = datetime.date.today() + datetime.timedelta(days=365)
+        pending_loan.save()
+        print(f"  [db]   Loan #{pending_loan.pk} → DISBURSED (farmer: {pending_loan.farmer.name})")
+    else:
+        print(f"  [db]   No pending loans left to mark disbursed")
 
     print(f"  [loan] ✅ APPROVED — ${amount} disbursed via mobile money")
     print(f"  [fund] capital=${fund.available_capital}  loans_issued={fund.loans_issued}")
@@ -654,7 +716,16 @@ def reset_fund(request):
 
     SimulationLog.objects.all().delete()
 
-    print("\n💰 FUND RESET — available_capital=$100,000  loans_issued=0  logs cleared\n")
+    # Flip disbursed loans back to pending so the pool is restored
+    reset_count = Loan.objects.filter(status=Loan.STATUS_DISBURSED).update(
+        status=Loan.STATUS_PENDING,
+        triggered=False,
+        loan_fund=None,
+        start_date=None,
+        end_date=None,
+    )
+
+    print(f"\n💰 FUND RESET — capital=$100,000  loans_issued=0  logs cleared  {reset_count} loans → pending\n")
     logger.info("Fund reset to $100,000 by secret button")
 
     return JsonResponse({
@@ -662,3 +733,23 @@ def reset_fund(request):
         "available_capital": fund.available_capital,
         "loans_issued": fund.loans_issued,
     })
+
+
+# ---------------------------------------------------------------------------
+# Reset drought on-chain
+# ---------------------------------------------------------------------------
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def reset_drought(request):
+    """
+    Calls contract.resetDrought() on Sepolia and clears the Django ClimateTrigger drought flag.
+    """
+    tx_hash = _reset_drought_on_chain()
+
+    # Mirror in Django DB so pre-condition check also sees drought = false
+    ClimateTrigger.objects.filter(drought=True).update(drought=False)
+
+    if tx_hash:
+        return JsonResponse({"status": "ok", "tx_hash": tx_hash})
+    return JsonResponse({"status": "error", "reason": "Contract call failed — check server logs"}, status=500)

@@ -18,7 +18,7 @@ class FarmerAdmin(admin.ModelAdmin):
 
 @admin.register(LoanProduct)
 class LoanProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "amount", "term_months", "grace_period_months", "mfi")
+    list_display = ("name", "min_amount", "max_amount", "term_months", "grace_period_months", "mfi")
     list_filter = ("mfi",)
 
 

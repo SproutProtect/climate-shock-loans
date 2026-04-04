@@ -9,6 +9,7 @@ urlpatterns = [
     path("api/request-loan/", views.request_loan, name="request_loan"),
     path("simulate-loan/", views.simulate_loan, name="simulate_loan"),
     path("reset-fund/", views.reset_fund, name="reset_fund"),
+    path("reset-drought/", views.reset_drought, name="reset_drought"),
     # Oracle simulation endpoints
     path("api/rainfall/", views.rainfall_data, name="rainfall_data"),
     path("api/oracle-trigger/", views.oracle_trigger, name="oracle_trigger"),

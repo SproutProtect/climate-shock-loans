@@ -31,13 +31,14 @@ class Farmer(models.Model):
 
 class LoanProduct(models.Model):
     name = models.CharField(max_length=255)
-    amount = models.FloatField(help_text="Loan amount in USD")
+    min_amount = models.IntegerField(default=55, help_text="Minimum loan amount in USD")
+    max_amount = models.IntegerField(default=120, help_text="Maximum loan amount in USD")
     term_months = models.IntegerField(default=12)
     grace_period_months = models.IntegerField(default=3)
     mfi = models.ForeignKey(MFI, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.name} (${self.amount:,.0f})"
+        return f"{self.name} (${self.min_amount}–${self.max_amount})"
 
 
 class LoanFund(models.Model):

@@ -51,16 +51,20 @@ class Command(BaseCommand):
         if created:
             self.stdout.write(f"  Created MFI: {mfi}")
 
-        # Loan Product — amount is the ceiling; actual per-loan amount varies
+        # Loan Product
         product, created = LoanProduct.objects.get_or_create(
             name="Drought Emergency Loan",
             defaults={
-                "amount": 120.0,
+                "min_amount": 55,
+                "max_amount": 120,
                 "term_months": 12,
                 "grace_period_months": 3,
                 "mfi": mfi,
             },
         )
+        # Ensure existing record has the correct min/max
+        if not created:
+            LoanProduct.objects.filter(pk=product.pk).update(min_amount=55, max_amount=120)
         if created:
             self.stdout.write(f"  Created LoanProduct: {product}")
 
@@ -88,7 +92,7 @@ class Command(BaseCommand):
             bid   = f"BNK-{i:04d}"
             phone = f"+251-9{random.randint(10,99)}-{random.randint(100,999)}-{i:03d}"
             loc   = random.choice(LOCATIONS)
-            amount = random.randint(55, 120)
+            amount = random.randint(product.min_amount, product.max_amount)
 
             farmer, f_created = Farmer.objects.get_or_create(
                 national_id=nid,
