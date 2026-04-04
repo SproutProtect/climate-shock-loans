@@ -77,7 +77,7 @@
   <!-- ── Hero ── -->
   <div class="relative w-full overflow-hidden" style="height: 320px;">
     {% if drought_active %}
-    <img src="{% static 'climate-shock-loans-hero-red.jpeg' %}" alt="Drought conditions" class="w-full h-full object-cover object-center" />
+    <img src="{% static 'climate-shock-loans-hero-red-blank.jpeg' %}" alt="Drought conditions" class="w-full h-full object-cover object-center" />
     <div class="absolute inset-0" style="background: linear-gradient(to right, rgba(158,31,56,0.72) 0%, rgba(230,62,98,0.35) 60%, transparent 100%);"></div>
     <div class="absolute inset-0 flex flex-col justify-center px-10 sm:px-16 max-w-3xl">
       <p class="text-white/70 text-xs font-semibold uppercase tracking-widest mb-2">Climate Trigger Active</p>
@@ -100,7 +100,9 @@
     <!-- ── Drought Status Banner ── -->
     {% if drought_active %}
     <div class="rounded-2xl bg-primary-50 border border-primary-200 p-6 flex items-center gap-5 shadow-sm">
-      <div class="w-14 h-14 rounded-full bg-primary-100 flex items-center justify-center text-3xl flex-shrink-0">🔥</div>
+      <div class="w-14 h-14 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+        <img src="{% static 'report_icons/success_blue.png' %}" alt="Drought active" class="w-8 h-8 object-contain" />
+      </div>
       <div>
         <h2 class="text-xl font-bold text-primary-700">Drought Condition Active</h2>
         <p class="text-primary-600 text-sm mt-1">
@@ -118,7 +120,9 @@
     </div>
     {% else %}
     <div class="rounded-2xl bg-gray-50 border border-gray-200 p-6 flex items-center gap-5 shadow-sm">
-      <div class="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-3xl flex-shrink-0">🌱</div>
+      <div class="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+        <img src="{% static 'report_icons/green_coffee_bean_blue.png' %}" alt="No drought" class="w-8 h-8 object-contain" />
+      </div>
       <div>
         <h2 class="text-xl font-bold text-gray-700">No Active Drought</h2>
         <p class="text-gray-500 text-sm mt-1">
@@ -247,11 +251,11 @@
           <div class="flex gap-3">
             <button type="submit" id="triggerBtn"
               class="flex-1 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
-              🔥 Trigger Drought
+              Trigger Drought
             </button>
             <button type="button" id="normalBtn"
               class="flex-1 bg-gray-500 hover:bg-gray-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
-              🌧️ Simulate Rain
+              Simulate Rain
             </button>
           </div>
         </form>
@@ -270,7 +274,7 @@
         <div class="space-y-2">
           {% for t in recent_triggers %}
           <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-            <span class="text-lg">{% if t.drought %}🔥{% else %}🌧️{% endif %}</span>
+            <img src="{% if t.drought %}{% static 'report_icons/success_blue.png' %}{% else %}{% static 'report_icons/rainfall_blue.png' %}{% endif %}" alt="{% if t.drought %}Drought{% else %}Normal{% endif %}" class="w-6 h-6 object-contain flex-shrink-0" />
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-gray-800 truncate">{{ t.region }}</p>
               <p class="text-xs text-gray-400">{{ t.rainfall }} mm / {{ t.threshold }} mm threshold</p>
@@ -288,7 +292,7 @@
         </div>
         {% else %}
         <div class="text-center py-10 text-gray-400">
-          <p class="text-4xl mb-3">📡</p>
+          <img src="{% static 'report_icons/satellite_blue.png' %}" alt="No events" class="w-12 h-12 object-contain mx-auto mb-3 opacity-40" />
           <p class="text-sm">No climate events yet. Use the simulator ←</p>
         </div>
         {% endif %}
@@ -335,7 +339,7 @@
               </td>
               <td class="px-6 py-3 text-center text-sm">
                 {% if loan.triggered %}
-                  <span class="text-primary-500" title="Climate-triggered">🔥</span>
+                  <img src="{% static 'report_icons/success_blue.png' %}" alt="Climate-triggered" title="Climate-triggered" class="w-5 h-5 object-contain mx-auto" />
                 {% else %}
                   <span class="text-gray-300">—</span>
                 {% endif %}
@@ -354,7 +358,7 @@
       </div>
       {% else %}
       <div class="text-center py-12 text-gray-400">
-        <p class="text-4xl mb-3">📋</p>
+        <img src="{% static 'report_icons/dashboard_blue.png' %}" alt="No loans" class="w-12 h-12 object-contain mx-auto mb-3 opacity-40" />
         <p class="text-sm">No loans yet. Add farmers &amp; loan products in <a href="/admin/" class="text-primary-500 hover:underline">Admin</a>, then trigger a drought event.</p>
       </div>
       {% endif %}
@@ -408,7 +412,7 @@
         alert('Request failed: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = '🔥 Trigger Drought';
+        btn.textContent = 'Trigger Drought';
       }
     });
 
@@ -432,7 +436,7 @@
         alert('Request failed: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = '🌧️ Simulate Rain';
+        btn.textContent = 'Simulate Rain';
       }
     });
   </script>
