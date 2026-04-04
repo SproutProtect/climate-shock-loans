@@ -272,83 +272,224 @@
     </div>
     {% endif %}
 
-    <!-- ── Two Columns: Trigger Simulator + Recent Triggers ── -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    
+    
 
-      <!-- Simulate Drought Trigger -->
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-        <h3 class="text-sm font-semibold text-gray-700 mb-1">Simulate Climate Trigger</h3>
-        <p class="text-xs text-gray-400 mb-5">Calls <code class="bg-gray-100 px-1 rounded">/trigger-drought/</code> — simulates CHIRPS data</p>
-        <form id="triggerForm" class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Region</label>
-            <input id="region" type="text" value="Tigray, Ethiopia"
-              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200" />
+
+    <!-- ── Farmer Loan Simulation ── -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-gray-700">Farmer Loan Requests</h3>
+          <p class="text-xs text-gray-400 mt-0.5">Simulates <code class="bg-gray-100 px-1 rounded">contract.requestLoan(amount)</code> — enforced on-chain</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right">
+            <p class="text-xs text-gray-400 uppercase tracking-wider">Loans Issued</p>
+            <p class="text-xl font-bold text-gray-800" id="sim-loans-issued">0</p>
           </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Rainfall (mm)</label>
-              <input id="rainfall" type="number" step="0.1" value="12.5"
-                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Threshold (mm)</label>
-              <input id="threshold" type="number" step="0.1" value="30.0"
-                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200" />
-            </div>
+          <div class="text-right">
+            <p class="text-xs text-gray-400 uppercase tracking-wider">Last Amount</p>
+            <p class="text-xl font-bold text-gray-800" id="sim-last-amount">—</p>
           </div>
-          <div class="flex gap-3">
-            <button type="submit" id="triggerBtn"
-              class="flex-1 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
-              Trigger Drought
+          <div class="flex items-center gap-2">
+            <button id="simBtn"
+              class="bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition disabled:opacity-50">
+              Simulate Farmer Request
             </button>
-            <button type="button" id="normalBtn"
-              class="flex-1 bg-gray-500 hover:bg-gray-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
-              Simulate Rain
+            <button id="stopBtn"
+              class="hidden bg-white border border-gray-300 hover:border-red-400 hover:text-red-500 text-gray-600 text-sm font-semibold px-4 py-2.5 rounded-lg transition">
+              Stop after this one
             </button>
-          </div>
-        </form>
-        <div id="triggerResult" class="mt-4 hidden">
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <p class="text-xs font-semibold text-gray-500 mb-2">Response</p>
-            <pre id="triggerResultPre" class="text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48"></pre>
           </div>
         </div>
       </div>
 
-      <!-- Recent Triggers -->
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-        <h3 class="text-sm font-semibold text-gray-700 mb-4">Recent Climate Events</h3>
-        {% if recent_triggers %}
-        <div class="space-y-2">
-          {% for t in recent_triggers %}
-          <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-            <img src="{% if t.drought %}{% static 'report_icons/success_blue.png' %}{% else %}{% static 'report_icons/rainfall_blue.png' %}{% endif %}" alt="{% if t.drought %}Drought{% else %}Normal{% endif %}" class="w-6 h-6 object-contain flex-shrink-0" />
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-gray-800 truncate">{{ t.region }}</p>
-              <p class="text-xs text-gray-400">{{ t.rainfall }} mm / {{ t.threshold }} mm threshold</p>
-            </div>
-            <div class="text-right flex-shrink-0">
-              {% if t.drought %}
-              <span class="drought-tag inline-block px-2.5 py-0.5 rounded-full text-xs">DROUGHT</span>
-              {% else %}
-              <span class="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">NORMAL</span>
-              {% endif %}
-              <p class="text-xs text-gray-400 mt-1">{{ t.triggered_at|date:"M j, H:i" }}</p>
-            </div>
+      <!-- Activity log — pre-populated from DB on load, extended live by JS -->
+      <div id="sim-log" class="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+        {% if simulation_logs %}
+          {% for entry in simulation_logs %}
+          <div class="px-6 py-3 flex items-center gap-4 text-sm border-b border-gray-50 last:border-0">
+            {% if entry.status == 'approved' %}
+              <img src="{% static 'report_icons/success_blue.png' %}" class="w-5 h-5 flex-shrink-0" />
+              <div class="flex-1">
+                <span class="font-medium text-gray-800">Farmer requested ${{ entry.amount }}</span>
+                <span class="mx-1.5 text-gray-300">→</span>
+                <span class="text-green-600 font-semibold">Approved → Sent via mobile money</span>
+                {% if entry.available_capital_after is not None %}
+                  <span class="mx-1.5 text-gray-300">→</span>
+                  <span class="text-gray-500">Remaining: ${{ entry.available_capital_after }}</span>
+                {% endif %}
+                {% if entry.tx_hash %}
+                  <a href="https://sepolia.etherscan.io/tx/{{ entry.tx_hash }}" target="_blank"
+                     class="ml-2 font-mono text-xs text-gray-400 hover:text-primary-500 underline underline-offset-2 transition"
+                     title="View on Sepolia Etherscan">{{ entry.tx_hash|slice:":10" }}…</a>
+                {% endif %}
+              </div>
+            {% else %}
+              <img src="{% static 'report_icons/warning_blue.png' %}" class="w-5 h-5 flex-shrink-0 opacity-60" />
+              <div class="flex-1">
+                <span class="font-medium text-gray-800">Farmer requested ${{ entry.amount }}</span>
+                <span class="mx-1.5 text-gray-300">→</span>
+                <span class="text-primary-500 font-semibold">Rejected ({{ entry.reason|default:"conditions not met" }})</span>
+              </div>
+            {% endif %}
+            <span class="text-xs text-gray-400 flex-shrink-0">{{ entry.created_at|date:"H:i:s" }}</span>
           </div>
           {% endfor %}
-        </div>
         {% else %}
-        <div class="text-center py-10 text-gray-400">
-          <img src="{% static 'report_icons/satellite_blue.png' %}" alt="No events" class="w-12 h-12 object-contain mx-auto mb-3 opacity-40" />
-          <p class="text-sm">No climate events yet. Use the simulator ←</p>
+        <div class="px-6 py-10 text-center text-gray-400" id="sim-empty">
+          <img src="{% static 'report_icons/rainfall_blue.png' %}" alt="" class="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p class="text-sm">No requests yet — press the button to simulate a farmer loan request.</p>
         </div>
         {% endif %}
       </div>
     </div>
 
-    <!-- ── Recent Loans Table ── -->
+    <!-- ── Approved Farmers (from simulation) ── -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <button onclick="toggleApproved()"
+        class="w-full px-6 py-4 border-b border-gray-100 flex items-center justify-between hover:bg-gray-50 transition text-left">
+        <div class="flex items-center gap-3">
+          <img src="{% static 'report_icons/success_blue.png' %}" class="w-5 h-5" />
+          <h3 class="text-sm font-semibold text-gray-700">Approved Farmers</h3>
+          <span class="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
+            {{ simulation_logs|length }} total
+          </span>
+        </div>
+        <svg id="approved-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      <div id="approved-list" class="hidden overflow-x-auto">
+        {% with approved=simulation_logs %}
+        {% if approved %}
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+            <tr>
+              <th class="px-6 py-3 text-left">#</th>
+              <th class="px-6 py-3 text-left">Amount</th>
+              <th class="px-6 py-3 text-left">Status</th>
+              <th class="px-6 py-3 text-left">Tx Hash</th>
+              <th class="px-6 py-3 text-left">Time</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {% for entry in approved %}
+            <tr class="hover:bg-gray-50 transition">
+              <td class="px-6 py-3 text-gray-400 font-mono text-xs">#{{ forloop.counter }}</td>
+              <td class="px-6 py-3 font-semibold text-gray-800">${{ entry.amount }}</td>
+              <td class="px-6 py-3">
+                {% if entry.status == 'approved' %}
+                  <span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                    ✓ Approved
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                    ✗ Rejected
+                  </span>
+                {% endif %}
+              </td>
+              <td class="px-6 py-3 font-mono text-xs text-gray-400">
+                {% if entry.tx_hash %}
+                  <a href="https://sepolia.etherscan.io/tx/{{ entry.tx_hash }}" target="_blank"
+                     class="hover:text-primary-500 underline underline-offset-2 transition">
+                    {{ entry.tx_hash|slice:":10" }}…
+                  </a>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td class="px-6 py-3 text-gray-400 text-xs">{{ entry.created_at|date:"H:i:s" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="px-6 py-10 text-center text-gray-400 text-sm">No approved farmers yet.</div>
+        {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+
+<!-- ── Two Columns: Trigger Simulator + Recent Triggers ── -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+  <!-- Simulate Drought Trigger -->
+  <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+    <h3 class="text-sm font-semibold text-gray-700 mb-1">Simulate Climate Trigger</h3>
+    <p class="text-xs text-gray-400 mb-5">Calls <code class="bg-gray-100 px-1 rounded">/trigger-drought/</code> — simulates CHIRPS data</p>
+    <form id="triggerForm" class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Region</label>
+        <input id="region" type="text" value="Tigray, Ethiopia"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200" />
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Rainfall (mm)</label>
+          <input id="rainfall" type="number" step="0.1" value="12.5"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Threshold (mm)</label>
+          <input id="threshold" type="number" step="0.1" value="30.0"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200" />
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button type="submit" id="triggerBtn"
+          class="flex-1 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
+          Trigger Drought
+        </button>
+        <button type="button" id="normalBtn"
+          class="flex-1 bg-gray-500 hover:bg-gray-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
+          Simulate Rain
+        </button>
+      </div>
+    </form>
+    <div id="triggerResult" class="mt-4 hidden">
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <p class="text-xs font-semibold text-gray-500 mb-2">Response</p>
+        <pre id="triggerResultPre" class="text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Triggers -->
+  <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+    <h3 class="text-sm font-semibold text-gray-700 mb-4">Recent Climate Events</h3>
+    {% if recent_triggers %}
+    <div class="space-y-2">
+      {% for t in recent_triggers %}
+      <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+        <img src="{% if t.drought %}{% static 'report_icons/success_blue.png' %}{% else %}{% static 'report_icons/rainfall_blue.png' %}{% endif %}" alt="{% if t.drought %}Drought{% else %}Normal{% endif %}" class="w-6 h-6 object-contain flex-shrink-0" />
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-gray-800 truncate">{{ t.region }}</p>
+          <p class="text-xs text-gray-400">{{ t.rainfall }} mm / {{ t.threshold }} mm threshold</p>
+        </div>
+        <div class="text-right flex-shrink-0">
+          {% if t.drought %}
+          <span class="drought-tag inline-block px-2.5 py-0.5 rounded-full text-xs">DROUGHT</span>
+          {% else %}
+          <span class="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">NORMAL</span>
+          {% endif %}
+          <p class="text-xs text-gray-400 mt-1">{{ t.triggered_at|date:"M j, H:i" }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-10 text-gray-400">
+      <img src="{% static 'report_icons/satellite_blue.png' %}" alt="No events" class="w-12 h-12 object-contain mx-auto mb-3 opacity-40" />
+      <p class="text-sm">No climate events yet. Use the simulator ←</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+        <!-- ── Recent Loans Table ── -->
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h3 class="text-sm font-semibold text-gray-700">Farmer Pre-Qualified Loans</h3>
@@ -411,39 +552,6 @@
       </div>
       {% endif %}
     </div>
-
-    <!-- ── Farmer Loan Simulation ── -->
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <h3 class="text-sm font-semibold text-gray-700">Farmer Loan Requests</h3>
-          <p class="text-xs text-gray-400 mt-0.5">Simulates <code class="bg-gray-100 px-1 rounded">contract.requestLoan(amount)</code> — enforced on-chain</p>
-        </div>
-        <div class="flex items-center gap-4">
-          <div class="text-right">
-            <p class="text-xs text-gray-400 uppercase tracking-wider">Loans Issued</p>
-            <p class="text-xl font-bold text-gray-800" id="sim-loans-issued">0</p>
-          </div>
-          <div class="text-right">
-            <p class="text-xs text-gray-400 uppercase tracking-wider">Last Amount</p>
-            <p class="text-xl font-bold text-gray-800" id="sim-last-amount">—</p>
-          </div>
-          <button id="simBtn"
-            class="bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition disabled:opacity-50">
-            Simulate Farmer Request
-          </button>
-        </div>
-      </div>
-
-      <!-- Activity log -->
-      <div id="sim-log" class="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-        <div class="px-6 py-10 text-center text-gray-400" id="sim-empty">
-          <img src="{% static 'report_icons/rainfall_blue.png' %}" alt="" class="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p class="text-sm">No requests yet — press the button to simulate a farmer loan request.</p>
-        </div>
-      </div>
-    </div>
-
   </main>
 
   <!-- ── Footer ── -->
@@ -455,9 +563,24 @@
       </span>
       <span>Chainlink · CHIRPS · Django 5</span>
     </div>
+    <!-- secret reset — low contrast, no label -->
+    <div class="flex justify-center mt-4">
+      <button id="resetFundBtn"
+        title="Reset fund to $100,000"
+        class="text-gray-200 hover:text-gray-400 text-xs transition select-none px-3 py-1 rounded">
+        ···
+      </button>
+    </div>
   </footer>
 
   <script>
+    const toggleApproved = () => {
+      const list = document.getElementById('approved-list');
+      const chevron = document.getElementById('approved-chevron');
+      list.classList.toggle('hidden');
+      chevron.style.transform = list.classList.contains('hidden') ? '' : 'rotate(180deg)';
+    };
+
     const getCookie = name => {
       const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
       return v ? v.pop() : '';
@@ -532,15 +655,38 @@
       return await res.json();
     };
 
-    const addLogEntry = (data) => {
+    // Add a "pending / waiting for contract" placeholder row, returns the element
+    const addPendingEntry = (farmerNum, total) => {
       document.getElementById('sim-empty')?.remove();
       const log = document.getElementById('sim-log');
       const row = document.createElement('div');
-      row.className = 'px-6 py-3 flex items-center gap-4 text-sm border-b border-gray-50 last:border-0';
+      row.className = 'px-6 py-3 flex items-center gap-4 text-sm border-b border-gray-50 last:border-0 animate-pulse';
+      row.innerHTML = `
+        <svg class="w-5 h-5 flex-shrink-0 text-gray-300 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+        <div class="flex-1 text-gray-400">
+          <span class="font-medium">Farmer ${farmerNum}/${total}</span>
+          <span class="mx-1.5">—</span>
+          <span>Sending to contract… waiting for Sepolia confirmation</span>
+        </div>`;
+      log.prepend(row);
+      return row;
+    };
+
+    // Replace a pending row with the confirmed result
+    const resolveEntry = (pendingRow, data) => {
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      pendingRow.classList.remove('animate-pulse');
 
       if (data.status === 'approved') {
-        row.innerHTML = `
+        const txLink = data.tx_hash
+          ? `<a href="https://sepolia.etherscan.io/tx/${data.tx_hash}" target="_blank"
+               class="ml-2 font-mono text-xs text-gray-400 hover:text-primary-500 underline underline-offset-2 transition"
+               title="View on Sepolia Etherscan">${data.tx_hash.slice(0,10)}…</a>`
+          : '';
+        pendingRow.innerHTML = `
           <img src="{% static 'report_icons/success_blue.png' %}" class="w-5 h-5 flex-shrink-0" />
           <div class="flex-1">
             <span class="font-medium text-gray-800">Farmer requested ${fmt(data.loan_amount)}</span>
@@ -548,10 +694,11 @@
             <span class="text-green-600 font-semibold">Approved → Sent via mobile money</span>
             <span class="mx-1.5 text-gray-300">→</span>
             <span class="text-gray-500">Remaining: ${fmt(data.available_capital)}</span>
+            ${txLink}
           </div>
           <span class="text-xs text-gray-400 flex-shrink-0">${time}</span>`;
       } else {
-        row.innerHTML = `
+        pendingRow.innerHTML = `
           <img src="{% static 'report_icons/warning_blue.png' %}" class="w-5 h-5 flex-shrink-0 opacity-60" />
           <div class="flex-1">
             <span class="font-medium text-gray-800">Farmer requested ${fmt(data.loan_amount)}</span>
@@ -560,10 +707,10 @@
           </div>
           <span class="text-xs text-gray-400 flex-shrink-0">${time}</span>`;
       }
-      log.prepend(row);
     };
 
     const QUEUE_SIZE = 10;
+    let stopRequested = false;
 
     const addQueueStatus = (current, total) => {
       const existing = document.getElementById('queue-status');
@@ -573,32 +720,50 @@
       bar.className = 'px-6 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-3 text-xs text-gray-500';
       const pct = Math.round((current / total) * 100);
       bar.innerHTML = `
-        <span class="font-medium">Processing queue: ${current}/${total}</span>
+        <span class="font-medium">Queue: ${current}/${total}</span>
         <div class="flex-1 bg-gray-200 rounded-full h-1.5">
           <div class="bg-primary-500 h-1.5 rounded-full transition-all duration-500" style="width:${pct}%"></div>
         </div>
         <span>${pct}%</span>`;
-      document.getElementById('sim-log').prepend(bar);
+      document.getElementById('sim-log').before(bar);
     };
 
     const removeQueueStatus = () => document.getElementById('queue-status')?.remove();
 
+    const stopBtn = document.getElementById('stopBtn');
+    stopBtn.addEventListener('click', () => {
+      stopRequested = true;
+      stopBtn.textContent = 'Stopping after this farmer…';
+      stopBtn.disabled = true;
+      stopBtn.classList.add('opacity-50');
+    });
+
     document.getElementById('simBtn').addEventListener('click', async () => {
       const btn = document.getElementById('simBtn');
       btn.disabled = true;
+      stopRequested = false;
+      stopBtn.classList.remove('hidden');
+      stopBtn.disabled = false;
+      stopBtn.textContent = 'Stop after this one';
+      stopBtn.classList.remove('opacity-50');
 
       try {
         for (let i = 1; i <= QUEUE_SIZE; i++) {
-          btn.textContent = `Processing farmer ${i}/${QUEUE_SIZE}…`;
+          btn.textContent = `Farmer ${i}/${QUEUE_SIZE} — waiting for contract…`;
           addQueueStatus(i, QUEUE_SIZE);
 
+          // Step 1: show pending row immediately
+          const pendingRow = addPendingEntry(i, QUEUE_SIZE);
+
+          // Step 2: send to contract, wait for confirmed receipt (blocks here)
           const data = await simulateLoan();
-          addLogEntry(data);
+
+          // Step 3: contract responded — resolve the row and update fund display
+          resolveEntry(pendingRow, data);
           updateDashboard(data);
 
-          if (i < QUEUE_SIZE) {
-            await new Promise(r => setTimeout(r, 1000));
-          }
+          // Check stop flag AFTER the farmer completes (never mid-transaction)
+          if (stopRequested) break;
         }
         removeQueueStatus();
       } catch (err) {
@@ -607,6 +772,8 @@
       } finally {
         btn.disabled = false;
         btn.textContent = 'Simulate Farmer Request';
+        stopBtn.classList.add('hidden');
+        stopRequested = false;
       }
     });
     // ────────────────────────────────────────────────────────────────────────
@@ -632,6 +799,29 @@
       } finally {
         btn.disabled = false;
         btn.textContent = 'Simulate Rain';
+      }
+    });
+
+    document.getElementById('resetFundBtn').addEventListener('click', async () => {
+      const res = await fetch('/reset-fund/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        // Update all capital displays
+        document.querySelectorAll('[data-por-capital]').forEach(el => el.textContent = '$100,000');
+        document.getElementById('fund-capital').textContent = '$100,000';
+        document.getElementById('fund-loans-issued').textContent = '0';
+        document.getElementById('fund-last-amount').textContent = '—';
+        document.getElementById('sim-loans-issued').textContent = '0';
+        document.getElementById('sim-last-amount').textContent = '—';
+        // Clear the activity log
+        const log = document.getElementById('sim-log');
+        log.innerHTML = `<div class="px-6 py-10 text-center text-gray-400" id="sim-empty">
+          <img src="{% static 'report_icons/rainfall_blue.png' %}" alt="" class="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p class="text-sm">No requests yet — press the button to simulate a farmer loan request.</p>
+        </div>`;
       }
     });
   </script>

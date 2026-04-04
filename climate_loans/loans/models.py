@@ -96,6 +96,27 @@ class Loan(models.Model):
         return f"Loan #{self.pk} — {self.farmer.name} ({self.status})"
 
 
+class SimulationLog(models.Model):
+    """Persists each farmer loan simulation result so the activity log survives page refreshes."""
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [(STATUS_APPROVED, "Approved"), (STATUS_REJECTED, "Rejected")]
+
+    amount = models.IntegerField(help_text="Requested loan amount in USD")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    reason = models.TextField(blank=True, null=True)
+    tx_hash = models.CharField(max_length=100, blank=True, null=True)
+    available_capital_after = models.IntegerField(null=True, blank=True)
+    loans_issued_after = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"SimulationLog #{self.pk} — ${self.amount} {self.status}"
+
+
 class ClimateTrigger(models.Model):
     region = models.CharField(max_length=255)
     rainfall = models.FloatField(help_text="Measured rainfall in mm")
