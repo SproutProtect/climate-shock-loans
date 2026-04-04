@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-(e+1c^hd@=s$8^=zn%-048#h$k981=k&=gj8gg6x@m7$a6-+6^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ["climateshockloans.xyz", "climate-shock-loans-071cc6f6615b.herokuapp.com"]
 
 
 # Application definition
@@ -111,6 +111,8 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 
 USE_TZ = True
+
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 
 # Static files (CSS, JavaScript, Images)
