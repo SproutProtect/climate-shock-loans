@@ -11,3 +11,6 @@ psycopg2==2.9.10
 
 # Environment
 python-dotenv==1.0.0
+
+# Blockchain
+web3==7.9.0
