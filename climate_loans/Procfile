@@ -1,1 +1,2 @@
-web: gunicorn climate_loans.wsgi
+web: gunicorn climate_loans.wsgi:application --timeout 30 --max-requests 1500 --preload --workers 1 --access-logfile - --log-file - --log-level debug
+release: python manage.py migrate
