@@ -33,6 +33,7 @@ def dashboard(request):
     total_loans = sum(loans_by_status.values())
 
     funds = LoanFund.objects.all()
+    loan_fund = LoanFund.objects.first()
     recent_triggers = ClimateTrigger.objects.all()[:10]
     recent_loans = Loan.objects.select_related("farmer", "loan_product").order_by("-created_at")[:20]
 
@@ -44,6 +45,7 @@ def dashboard(request):
         "loans_by_status": loans_by_status,
         "total_loans": total_loans,
         "funds": funds,
+        "loan_fund": loan_fund,
         "recent_triggers": recent_triggers,
         "recent_loans": recent_loans,
     }
@@ -259,6 +261,120 @@ def oracle_trigger(request):
         "activated_loans": activated_loans,
         "message": f"Oracle trigger executed — {len(activated_loans)} loan(s) activated.",
     })
+
+
+# ---------------------------------------------------------------------------
+# API: Simulate Loan (server-side amount generation + fund withdrawal)
+# ---------------------------------------------------------------------------
+
+@csrf_exempt
+@require_http_methods(["POST", "GET"])
+def simulate_loan(request):
+    """
+    End-to-end loan simulation endpoint.
+
+    1. Generates a random loan amount ($55–$120) server-side.
+    2. Checks drought is active (contract pre-condition).
+    3. Calls fund.withdraw(amount) — mirrors contract.requestLoan(amount).
+    4. Returns loan_amount, status, updated capital, and loans_issued count.
+
+    In production, step 3 becomes a signed web3 transaction.
+    """
+    latest_trigger = ClimateTrigger.objects.first()
+    drought_active = latest_trigger.drought if latest_trigger else False
+
+    amount = random.randint(55, 120)
+    fund = LoanFund.objects.first()
+
+    if not drought_active:
+        return JsonResponse({
+            "loan_amount": amount,
+            "status": "rejected",
+            "reason": "No active drought — contract condition not met",
+            "available_capital": fund.available_capital if fund else 0,
+            "loans_issued": fund.loans_issued if fund else 0,
+        })
+
+    if not fund:
+        return JsonResponse({
+            "loan_amount": amount,
+            "status": "rejected",
+            "reason": "No loan fund configured",
+            "available_capital": 0,
+            "loans_issued": 0,
+        })
+
+    approved = fund.withdraw(amount)
+
+    logger.info(
+        "simulate_loan — amount=$%d drought=%s approved=%s remaining=$%d",
+        amount, drought_active, approved, fund.available_capital,
+    )
+
+    return JsonResponse({
+        "loan_amount": amount,
+        "status": "approved" if approved else "rejected",
+        "reason": None if approved else "insufficient reserves",
+        "available_capital": fund.available_capital,
+        "loans_issued": fund.loans_issued,
+        "last_updated": fund.last_updated.isoformat(),
+    })
+
+
+# ---------------------------------------------------------------------------
+# API: Request Loan (simulation layer → mirrors contract.requestLoan)
+# ---------------------------------------------------------------------------
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def request_loan(request):
+    """
+    Simulates contract.requestLoan(amount).
+
+    POST body (JSON): { "amount": 85 }
+
+    Checks the primary fund for sufficient capital and deducts if approved.
+    In production, replace the fund.withdraw() call with a signed web3
+    transaction to the on-chain contract.
+    """
+    try:
+        body = json.loads(request.body)
+        amount = int(body.get("amount", 0))
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+
+    if amount <= 0:
+        return JsonResponse({"error": "Amount must be a positive integer"}, status=400)
+
+    fund = LoanFund.objects.filter(available_capital__gt=0).first()
+
+    if not fund:
+        return JsonResponse({
+            "approved": False,
+            "reason": "No active loan fund",
+            "available_capital": 0,
+        })
+
+    approved = fund.withdraw(amount)
+
+    if approved:
+        logger.info("Loan request approved — $%d withdrawn from fund '%s' (remaining: $%d)",
+                    amount, fund.name, fund.available_capital)
+        return JsonResponse({
+            "approved": True,
+            "amount": amount,
+            "fund": fund.name,
+            "available_capital": fund.available_capital,
+            "last_updated": fund.last_updated.isoformat(),
+        })
+    else:
+        logger.info("Loan request rejected — insufficient reserves (requested $%d, available $%d)",
+                    amount, fund.available_capital)
+        return JsonResponse({
+            "approved": False,
+            "reason": "insufficient reserves",
+            "available_capital": fund.available_capital,
+        })
 
 
 # ---------------------------------------------------------------------------

@@ -42,12 +42,14 @@ class LoanProduct(models.Model):
 
 class LoanFund(models.Model):
     name = models.CharField(max_length=255)
-    total_capital = models.FloatField(help_text="Total fund capital in USD")
-    available_capital = models.FloatField(help_text="Remaining available capital in USD")
+    total_capital = models.IntegerField(default=100000, help_text="Total fund capital in USD")
+    available_capital = models.IntegerField(default=100000, help_text="Remaining available capital in USD")
+    loans_issued = models.IntegerField(default=0, help_text="Number of loans disbursed from this fund")
     funding_source = models.CharField(max_length=255, help_text="e.g. WFP, Government")
+    last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} (${self.available_capital:,.0f} available)"
+        return f"{self.name} (${self.available_capital:,} available)"
 
     @property
     def utilization_pct(self):
@@ -55,6 +57,16 @@ class LoanFund(models.Model):
             return 0
         used = self.total_capital - self.available_capital
         return round((used / self.total_capital) * 100, 1)
+
+    def withdraw(self, amount):
+        """Deduct amount from available capital and increment loans_issued. Returns True if successful."""
+        amount = int(amount)
+        if self.available_capital >= amount:
+            self.available_capital -= amount
+            self.loans_issued += 1
+            self.save()
+            return True
+        return False
 
 
 class Loan(models.Model):
