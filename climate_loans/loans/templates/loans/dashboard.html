@@ -354,7 +354,7 @@
           <img src="{% static 'report_icons/success_blue.png' %}" class="w-5 h-5" />
           <h3 class="text-sm font-semibold text-gray-700">Approved Farmer Loans</h3>
           <span class="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
-            {{ simulation_logs|length }} total
+            {{ approved_logs|length }} approved
           </span>
         </div>
         <svg id="approved-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,34 +362,21 @@
         </svg>
       </button>
       <div id="approved-list" class="hidden overflow-x-auto">
-        {% with approved=simulation_logs %}
-        {% if approved %}
+        {% if approved_logs %}
         <table class="w-full text-sm">
           <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
             <tr>
               <th class="px-6 py-3 text-left">#</th>
               <th class="px-6 py-3 text-left">Amount</th>
-              <th class="px-6 py-3 text-left">Status</th>
               <th class="px-6 py-3 text-left">Tx Hash</th>
               <th class="px-6 py-3 text-left">Time</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
-            {% for entry in approved %}
+            {% for entry in approved_logs %}
             <tr class="hover:bg-gray-50 transition">
               <td class="px-6 py-3 text-gray-400 font-mono text-xs">#{{ forloop.counter }}</td>
               <td class="px-6 py-3 font-semibold text-gray-800">${{ entry.amount }}</td>
-              <td class="px-6 py-3">
-                {% if entry.status == 'approved' %}
-                  <span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                    ✓ Approved
-                  </span>
-                {% else %}
-                  <span class="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                    ✗ Rejected
-                  </span>
-                {% endif %}
-              </td>
               <td class="px-6 py-3 font-mono text-xs text-gray-400">
                 {% if entry.tx_hash %}
                   <a href="https://sepolia.etherscan.io/tx/{{ entry.tx_hash }}" target="_blank"
@@ -406,9 +393,8 @@
           </tbody>
         </table>
         {% else %}
-        <div class="px-6 py-10 text-center text-gray-400 text-sm">No approved farmers yet.</div>
+        <div class="px-6 py-10 text-center text-gray-400 text-sm">No approved loans yet.</div>
         {% endif %}
-        {% endwith %}
       </div>
     </div>
 

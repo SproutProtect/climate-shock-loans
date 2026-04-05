@@ -246,6 +246,7 @@ def dashboard(request):
     recent_triggers = ClimateTrigger.objects.all()[:10]
     recent_loans = Loan.objects.select_related("farmer", "loan_product").order_by("-created_at")[:20]
     simulation_logs = SimulationLog.objects.order_by("-created_at")[:50]
+    approved_logs = SimulationLog.objects.filter(status=SimulationLog.STATUS_APPROVED).order_by("-created_at")[:50]
 
     context = {
         "drought_active": drought_active,
@@ -259,6 +260,7 @@ def dashboard(request):
         "recent_triggers": recent_triggers,
         "recent_loans": recent_loans,
         "simulation_logs": simulation_logs,
+        "approved_logs": approved_logs,
     }
     return render(request, "loans/dashboard.html", context)
 
@@ -503,15 +505,16 @@ def simulate_loan(request):
     print(f"{'='*55}")
 
     def _log_and_respond(status, reason, tx_hash=None):
-        """Persist result to SimulationLog and return the JsonResponse."""
-        SimulationLog.objects.create(
-            amount=amount,
-            status=status,
-            reason=reason,
-            tx_hash=tx_hash,
-            available_capital_after=fund.available_capital if fund else 0,
-            loans_issued_after=fund.loans_issued if fund else 0,
-        )
+        """Persist approved loans to SimulationLog; rejections are transient (shown in live log only)."""
+        if status == SimulationLog.STATUS_APPROVED:
+            SimulationLog.objects.create(
+                amount=amount,
+                status=status,
+                reason=reason,
+                tx_hash=tx_hash,
+                available_capital_after=fund.available_capital if fund else 0,
+                loans_issued_after=fund.loans_issued if fund else 0,
+            )
         return JsonResponse({
             "loan_amount": amount,
             "status": status,
